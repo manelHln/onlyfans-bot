@@ -1,0 +1,65 @@
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    
+  chrome:
+    image: selenium/node-chrome:beta
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_ENABLE_TRACING=true
+      - SE_OTEL_TRACES_EXPORTER=otlp
+      - SE_OTEL_EXPORTER_ENDPOINT=http://jaeger:4317
+
+  selenium-hub:
+    image: selenium/hub:latest
+    container_name: selenium-hub
+    depends_on:
+      - jaeger
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+    environment:
+      # - SE_START_VNC=false=false
+      - SE_ENABLE_TRACING=true
+      - SE_OTEL_TRACES_EXPORTER=otlp
+      - SE_OTEL_EXPORTER_ENDPOINT=http://jaeger:4317
+
+  chrome_video:
+    image: selenium/video:ffmpeg-7.1-20241204
+    depends_on:
+      - chrome
+    environment:
+      - DISPLAY_CONTAINER_NAME=chrome
+      - SE_VIDEO_FILE_NAME=auto
+      - SE_VIDEO_UPLOAD_ENABLED=true
+      - SE_UPLOAD_DESTINATION_PREFIX=s3://mybucket/path
+      - RCLONE_CONFIG_S3_TYPE=s3
+      - RCLONE_CONFIG_S3_PROVIDER=GCS
+      - RCLONE_CONFIG_S3_ENV_AUTH=true
+      - RCLONE_CONFIG_S3_REGION=asia-southeast1
+      - RCLONE_CONFIG_S3_LOCATION_CONSTRAINT=asia-southeast1
+      - RCLONE_CONFIG_S3_ACL=private
+      - RCLONE_CONFIG_S3_ACCESS_KEY_ID=xxx
+      - RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=xxx
+      - RCLONE_CONFIG_S3_ENDPOINT=https://storage.googleapis.com
+      - RCLONE_CONFIG_S3_NO_CHECK_BUCKET=true
+
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: edu_exchange_db
+      POSTGRES_PASSWORD: gangbang
+      POSTGRES_USER: edu_db_user
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - .:/edu_exchange_db_volume/postgres
